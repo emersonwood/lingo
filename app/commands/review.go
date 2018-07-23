@@ -156,7 +156,11 @@ func reviewCMD(cliCtx *cli.Context) (string, error) {
 		return "", errors.Trace(err)
 	}
 
-	cfg, err := config.Platform()
+	platConfig, err := config.Platform()
+	if err != nil {
+		return "", errors.Trace(err)
+	}
+	authConfig, err := config.Auth()
 	if err != nil {
 		return "", errors.Trace(err)
 	}
@@ -179,11 +183,11 @@ func reviewCMD(cliCtx *cli.Context) (string, error) {
 	}
 	switch vcsTypeStr {
 	case vcsGit:
-		addr, err := cfg.GitServerAddr()
+		addr, err := platConfig.GitServerAddrWithAuth(authConfig)
 		if err != nil {
 			return "", errors.Trace(err)
 		}
-		hostname, err := cfg.GitRemoteName()
+		hostname, err := platConfig.GitRemoteName()
 		if err != nil {
 			return "", errors.Trace(err)
 		}
@@ -192,15 +196,15 @@ func reviewCMD(cliCtx *cli.Context) (string, error) {
 		req.Hostname = hostname
 		req.OwnerOrDepot = &flowengine.ReviewRequest_Owner{owner}
 	case vcsP4:
-		addr, err := cfg.P4ServerAddr()
+		addr, err := platConfig.P4ServerAddr()
 		if err != nil {
 			return "", errors.Trace(err)
 		}
-		hostname, err := cfg.P4RemoteName()
+		hostname, err := platConfig.P4RemoteName()
 		if err != nil {
 			return "", errors.Trace(err)
 		}
-		depot, err := cfg.P4RemoteDepotName()
+		depot, err := platConfig.P4RemoteDepotName()
 		if err != nil {
 			return "", errors.Trace(err)
 		}

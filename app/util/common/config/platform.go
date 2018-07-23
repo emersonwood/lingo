@@ -155,6 +155,34 @@ func (p *platformConfig) GitServerAddr() (string, error) {
 	return addr + ":" + port, nil
 }
 
+// GitServerAddrWithAuth returns the URL to the git server with the user's authentication included, eg. https://user:token@git.codelingo.io
+func (p *platformConfig) GitServerAddrWithAuth(auth *authConfig) (string, error) {
+	protocol, err := p.GitServerProtocol()
+	if err != nil {
+		return "", errors.Trace(err)
+	}
+	host, err := p.GitServerHost()
+	if err != nil {
+		return "", errors.Trace(err)
+	}
+	user, err := auth.GetGitUserName()
+	if err != nil {
+		return "", errors.Trace(err)
+	}
+	token, err := auth.GetGitUserPassword()
+	if err != nil {
+		return "", errors.Trace(err)
+	}
+	port, err := p.GitServerPort()
+	if err != nil {
+		return "", errors.Trace(err)
+	}
+
+	address := fmt.Sprintf("%s://%s:%s@%s:%s", protocol, user, token, host, port)
+
+	return address, nil
+}
+
 func (p *platformConfig) Address() (string, error) {
 	addr, err := p.GetValue(platformServerAddr)
 	if err != nil {
