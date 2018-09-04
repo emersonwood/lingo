@@ -40,8 +40,12 @@ func Write(newSRCs []*SRCHunk) error {
 		if err := ioutil.WriteFile(filename, []byte(fileSRC), 0644); err != nil {
 			return errors.Trace(err)
 		}
-		fmt.Printf("%d modifications made to file %s\n", i, filename)
-
+		num := i + 1
+		if num == 1 {
+			fmt.Printf("%d modification made to file %s\n", 1, filename)
+		} else {
+			fmt.Printf("%d modifications made to file %s\n", num, filename)
+		}
 	}
 
 	return nil

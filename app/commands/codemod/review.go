@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 
@@ -23,6 +24,51 @@ import (
 
 	"github.com/juju/errors"
 )
+
+var upsertIssues = []*flow.Issue{
+	{
+		Position: &flow.IssueRange{
+			Start: &flow.Position{
+				Offset:   295,
+				Line:     17,
+				Column:   17,
+				Filename: "main.go",
+			},
+			End: &flow.Position{
+				Offset:   295,
+				Line:     17,
+				Column:   17,
+				Filename: "main.go",
+			},
+		},
+		Comment:   "i int, wg *sync.WaitGroup",
+		CtxBefore: "\tfor i := 0; i < 10; i++ { // For each number, run an asynchronous / concurrent function to print the number\n\t\twg.Add(1)",
+		CtxAfter:  "\t\t\tfmt.Println(i)\n\t\t\twg.Done()",
+		LineText:  "\t\tgo func() { // For each number, run an asynchronous / concurrent function to print the number",
+		Name:      "unsafe-go-routine-variables",
+	},
+	{
+		Position: &flow.IssueRange{
+			Start: &flow.Position{
+				Offset:   416,
+				Line:     20,
+				Column:   11,
+				Filename: "main.go",
+			},
+			End: &flow.Position{
+				Offset:   416,
+				Line:     20,
+				Column:   11,
+				Filename: "main.go",
+			},
+		},
+		Comment:   "i, wg",
+		CtxBefore: "\t\t\tfmt.Println(i)\n\t\t\twg.Done()",
+		CtxAfter:  "\t}\n\twg.Wait()",
+		LineText:  "\t\t}()",
+		Name:      "unsafe-go-routine-variables",
+	},
+}
 
 func RequestReview(ctx context.Context, req *flow.ReviewRequest) (chan *flow.Issue, chan error, error) {
 
@@ -141,6 +187,8 @@ func ConfirmIssues(cancel context.CancelFunc, issuec chan *flow.Issue, errorc ch
 		timeout = time.After(time.Minute * 5)
 	}
 
+	isUpsert := false
+
 l:
 	for {
 		select {
@@ -190,7 +238,36 @@ l:
 			}
 
 			clqlStr := "import codelingo/ast/go\n" + iss.Comment
+			if len(iss.Tags) > 0 && iss.Tags[0] == "upsert" {
+				if isUpsert {
+					continue
+				}
+				isUpsert = true
+				for _, upIss := range upsertIssues {
+					src := upIss.Comment
+					// add full lines for user confirmation
+					confirmSRC, err := fullLineSRC(upIss, src)
+					if err != nil {
+						return nil, errors.Trace(err)
+					}
+					confirmSRC = strings.TrimSuffix(confirmSRC, "\n")
 
+					if cfm.Confirm(0, upIss, confirmSRC) {
+
+						issuePos := upIss.Position
+						startPos := issuePos.GetStart()
+
+						// TODO(waigani) offsets need to be based off codemod decorator, not review.
+						confirmedIssues = append(confirmedIssues, &SRCHunk{
+							StartOffset: startPos.Offset,
+							EndOffset:   issuePos.GetEnd().Offset,
+							SRC:         src,
+							Filename:    startPos.Filename,
+						})
+					}
+				}
+				continue
+			}
 			// support one set decorator per query.
 			srcs, err := ClqlToSrc(string(clqlStr))
 			if err != nil {
@@ -205,6 +282,7 @@ l:
 			if err != nil {
 				return nil, errors.Trace(err)
 			}
+			confirmSRC = strings.TrimSuffix(confirmSRC, "\n")
 
 			if cfm.Confirm(0, iss, confirmSRC) {
 
